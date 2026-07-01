@@ -1,159 +1,160 @@
-# 📝 Inkwell — Personal Blog Platform (UI Prototype)
+# Inkwell API — Flask Backend
 
-A modern, minimal blog platform UI inspired by Medium, Hashnode, Dev.to, Ghost, and Notion — built as a single-file, front-end prototype with a full design system, mock data, and working client-side interactions.
+A REST API for the Inkwell blog platform, built with **Flask**, **SQLAlchemy**, and **JWT authentication**. Pairs with the [Inkwell front-end prototype](../).
 
-![Status](https://img.shields.io/badge/status-prototype-yellow)
-![HTML](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white)
-![CSS](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black)
-![License](https://img.shields.io/badge/license-MIT-green)
+## Tech Stack
 
----
+- Python 3.10+
+- Flask 3
+- Flask-SQLAlchemy (SQLite for dev, swap to PostgreSQL for production)
+- Flask-JWT-Extended (access + refresh tokens)
+- Flask-CORS
 
-## ✨ Overview
+## Features
 
-Inkwell is a personal blogging platform concept with a clean, premium interface: rounded cards, soft shadows, a glassmorphism hero, full dark mode, and a signature emerald/sky-blue palette.
+- **Auth** — signup, login, refresh token, `/me`
+- **Users** — view profile, edit own profile (name, bio, avatar, social links), follow/unfollow
+- **Blogs** — create, edit, delete, publish/draft; search, filter by category/tag, sort (recent/popular/likes), pagination
+- **Comments** — nested replies
+- **Likes & bookmarks** — per-user, per-post
+- **Categories & tags** — with live post counts
+- **Dashboard** — aggregated stats for the logged-in writer (views, likes, comments, followers, drafts/published/scheduled counts)
+- **Notifications** — simple in-app notification feed
 
-This repo currently contains a **fully interactive front-end prototype** — a single `index.html` file (HTML + CSS + vanilla JS, no build step) that demonstrates every core page and flow using in-memory mock data. It is not yet wired to a real backend/database — see [Roadmap](#-roadmap--planned-backend) for what's next.
+## Project Structure
 
-**[🔗 Live Demo](#)** — replace with your GitHub Pages / Vercel / Netlify link once deployed (see [Deployment](#-deployment)).
+```
+inkwell-backend/
+├── app/
+│   ├── __init__.py         # App factory, blueprint registration
+│   ├── extensions.py        # db, jwt, cors singletons
+│   ├── models.py             # User, Profile, Blog, Category, Tag, Comment, Like, Bookmark, Follower, Notification
+│   └── routes/
+│       ├── auth.py            # /api/auth/*
+│       ├── users.py           # /api/users/*
+│       ├── blogs.py           # /api/blogs/*
+│       ├── categories.py      # /api/categories
+│       ├── tags.py            # /api/tags
+│       ├── comments.py        # /api/blogs/<id>/comments
+│       ├── interactions.py    # likes, bookmarks, notifications
+│       └── dashboard.py       # /api/dashboard/stats
+├── instance/                  # SQLite DB lives here (git-ignored)
+├── config.py                   # Config from environment variables
+├── seed.py                      # Populates sample data
+├── run.py                        # Dev entrypoint
+├── requirements.txt
+├── .env.example
+└── README.md
+```
 
----
+## Setup
 
-## 📸 Preview
+```bash
+cd inkwell-backend
 
-> Add screenshots or a screen recording here once deployed.
+# 1. Create a virtual environment
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
 
-| Landing Page | Blog Feed | Editor |
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Configure environment variables
+cp .env.example .env            # then edit SECRET_KEY / JWT_SECRET_KEY
+
+# 4. Create the instance folder (holds the SQLite file)
+mkdir -p instance
+
+# 5. Seed the database with sample data
+python seed.py
+
+# 6. Run the dev server
+python run.py
+```
+
+The API is now live at `http://localhost:5000`. Health check: `GET /api/health`.
+
+**Sample login (from `seed.py`):** `lavanya@example.com` / `password123`
+
+## API Reference
+
+All request/response bodies are JSON. Authenticated routes require an `Authorization: Bearer <access_token>` header.
+
+### Auth
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/api/auth/signup` | — | Create account → `{name, email, password}` |
+| POST | `/api/auth/login` | — | Log in → `{email, password}` |
+| POST | `/api/auth/refresh` | refresh token | Get a new access token |
+| GET | `/api/auth/me` | ✅ | Current user's profile |
+| POST | `/api/auth/logout` | ✅ | Logout (client discards token) |
+
+### Users
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/users/<id>` | — | Public profile |
+| PUT | `/api/users/me` | ✅ | Edit own name/bio/avatar/social links |
+| GET | `/api/users/<id>/blogs` | — | A user's published posts |
+| POST | `/api/users/<id>/follow` | ✅ | Follow a user |
+| DELETE | `/api/users/<id>/follow` | ✅ | Unfollow |
+
+### Blogs
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/blogs?search=&category=&tag=&sort=&page=&per_page=` | — | List/search/filter/paginate published posts |
+| GET | `/api/blogs/<slug>` | — | Full post detail (increments view count) |
+| POST | `/api/blogs` | ✅ | Create a post |
+| PUT | `/api/blogs/<id>` | ✅ (author only) | Edit a post |
+| DELETE | `/api/blogs/<id>` | ✅ (author only) | Delete a post |
+
+### Comments / Likes / Bookmarks
+| Method | Endpoint | Auth |
 |---|---|---|
-| _screenshot_ | _screenshot_ | _screenshot_ |
+| GET / POST | `/api/blogs/<id>/comments` | GET: —, POST: ✅ |
+| DELETE | `/api/comments/<id>` | ✅ (author only) |
+| POST / DELETE | `/api/blogs/<id>/like` | ✅ |
+| POST / DELETE | `/api/blogs/<id>/bookmark` | ✅ |
+| GET | `/api/users/me/bookmarks` | ✅ |
 
----
+### Categories, Tags, Dashboard, Notifications
+| Method | Endpoint | Auth |
+|---|---|---|
+| GET | `/api/categories` | — |
+| GET | `/api/tags?search=` | — |
+| GET | `/api/dashboard/stats` | ✅ |
+| GET | `/api/notifications` | ✅ |
+| POST | `/api/notifications/<id>/read` | ✅ |
 
-## 🚀 Features
+### Example: creating a post
 
-### Pages
-- **Landing page** — hero with glassmorphism stat card, featured/trending/recent stories, category chips, author spotlight, testimonials, newsletter signup
-- **Home / Feed** — live search, category filters, sort (recent / popular / most liked / reading time), pagination ("load more"), popular tags & top writers sidebar
-- **Blog detail** — table of contents, reading-progress bar, like / bookmark / share, comments section, related articles
-- **Editor** — Markdown toolbar (bold, italic, code, quote, list, link, image, heading), live preview pane, word count & reading-time calculator, SEO slug preview, AI title suggestion, autosave indicator
-- **Dashboard** — stat cards (views, likes, comments, followers, bookmarks), weekly views chart, recent activity feed, posts table with status badges (published / draft / scheduled)
-- **Profile** — editable name, bio, and social links (GitHub, LinkedIn, Twitter/X, website) via an edit-profile modal
-- **Categories**, **About**, **Contact**, **Auth** (login / signup / Google button UI)
-
-### Design system
-- Palette: Emerald `#22C55E`, Sky Blue `#38BDF8`, Background `#F8FAFC`, full dark-mode theme via CSS variables
-- Typography: **Poppins** (display) + **Inter** (body) + **JetBrains Mono** (code)
-- Fully responsive (desktop, tablet, mobile)
-- Toast notifications, skeleton-free instant interactions, keyboard-dismissible modal (`Esc`)
-
----
-
-## 🛠 Tech Stack
-
-**Current (prototype)**
-- HTML5, CSS3 (custom properties, no framework), vanilla JavaScript
-- Google Fonts (Poppins, Inter, JetBrains Mono)
-- Zero build step — works by opening the file directly
-
-**Planned (full-stack version)** — see [Roadmap](#-roadmap--planned-backend)
-- Frontend: React.js + Tailwind CSS
-- Backend: Django (or Flask) + Django REST Framework
-- Database: PostgreSQL (production), SQLite (development)
-- Auth: Django Auth + JWT + Google OAuth
-- Storage: Cloudinary for media
-- Deployment: Vercel (frontend) + Render/Railway (backend)
-
----
-
-## 📂 Project Structure
-
-```
-inkwell/
-├── index.html          # Full prototype (HTML + CSS + JS, single file)
-├── README.md            # You are here
-└── assets/               # (optional) screenshots, favicon, etc.
-```
-
-> When the backend is added, this repo will split into `frontend/` and `backend/` directories — see the roadmap section for the intended structure.
-
----
-
-## ⚙️ Getting Started
-
-No installation or build step is required for the current prototype.
-
-### Option 1 — Just open it
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/<your-username>/inkwell.git
-   cd inkwell
-   ```
-2. Open `index.html` directly in your browser (double-click, or drag it into a browser window).
-
-### Option 2 — Serve it locally (recommended for consistent behavior)
 ```bash
-# Python 3
-python -m http.server 8000
-
-# or Node
-npx serve .
-```
-Then visit `http://localhost:8000`.
-
----
-
-## 🌐 Deployment
-
-Since this is a static single HTML file, you can deploy it anywhere for free:
-
-**GitHub Pages**
-```bash
-# in your repo settings → Pages → deploy from branch → main → / (root)
+curl -X POST http://localhost:5000/api/blogs \
+  -H "Authorization: Bearer <your_access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "My First Post",
+    "content": "## Hello\n\nThis is my first Inkwell post.",
+    "status": "published",
+    "category": "Technology",
+    "tags": ["python", "flask"]
+  }'
 ```
 
-**Vercel / Netlify**
-- Drag and drop the project folder into the Vercel/Netlify dashboard, or
-- Connect your GitHub repo and deploy with zero configuration (static site, no build command needed).
+## Switching to PostgreSQL
 
----
+Set `DATABASE_URL` in `.env`:
+```
+DATABASE_URL=postgresql://user:password@localhost:5432/inkwell
+```
+Install the driver: `pip install psycopg2-binary`, then re-run `python seed.py` (or use a migration tool like Flask-Migrate for production schema changes instead of `db.drop_all()`/`db.create_all()`).
 
-## 🧭 Roadmap / Planned Backend
+## Notes & Limitations
 
-This prototype defines the target UI/UX and interaction design. The full production version is planned to include:
+- JWTs are stateless — `logout` doesn't revoke a token server-side. For real revocation, add a token-blocklist table.
+- `seed.py` drops and recreates all tables — don't run it against real data.
+- Google OAuth and Cloudinary image uploads aren't implemented — both require external API credentials you'd register yourself (Google Cloud Console / Cloudinary dashboard) and wire in via `authlib`/`flask-dance` and the `cloudinary` SDK respectively.
+- CORS defaults to `*` for local development — restrict `CORS_ORIGINS` in `.env` before deploying.
 
-- [ ] Django REST API (Users, Blogs, Comments, Likes, Bookmarks, Followers, Categories, Tags, Notifications)
-- [ ] PostgreSQL database with migrations
-- [ ] JWT authentication + Google OAuth login
-- [ ] Cloudinary integration for image/video uploads
-- [ ] Real rich-text/Markdown editor with autosave to backend
-- [ ] Admin panel (users, blogs, comments, reports, roles & permissions)
-- [ ] SEO: sitemap.xml, robots.txt, RSS feed, Open Graph tags
-- [ ] Analytics dashboard backed by real view/engagement data
-- [ ] CI/CD deployment to Vercel (frontend) + Render/Railway (backend)
+## Connecting the Front End
 
-Contributions toward any of these are welcome — see [Contributing](#-contributing).
-
----
-
-## 🤝 Contributing
-
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m "Add your feature"`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-## 🙋 Author
-
-**Lavanya** — [GitHub](#) · [LinkedIn](#) · [Twitter/X](#)
-
-If you find this useful, consider giving the repo a ⭐!
+The existing `inkwell-blog.html` prototype uses in-memory mock data. To wire it to this API, replace the `POSTS` array and mock functions with `fetch()` calls to these endpoints, storing the JWT (e.g. in memory or an httpOnly cookie set by the backend — avoid `localStorage` for tokens in production) and sending it as a Bearer token on authenticated requests.
